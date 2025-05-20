@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>WhiteLabel KI Chatbot</title>
+</head>
+<body>
+  <h1>💬 Chatbot</h1>
+  <div>
+    <textarea id="message" placeholder="Deine Frage..."></textarea>
+    <button onclick="sendMessage()">Senden</button>
+  </div>
+  <div id="response"></div>
+
+  <script>
+    async function sendMessage() {
+      const message = document.getElementById("message").value;
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+
+      const data = await res.json();
+      document.getElementById("response").innerText = data.reply || "Fehler";
+    }
+  </script>
+</body>
+</html>
