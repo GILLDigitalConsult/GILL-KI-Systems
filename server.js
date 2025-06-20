@@ -15,41 +15,34 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static("public")); // Website-Frontend
 
-let threadId = null;
-
-// Neue Unterhaltung starten
-async function initThread() {
-  const thread = await openai.beta.threads.create();
-  threadId = thread.id;
-}
-
-// Antwort holen vom Assistant
+// POST /chat → verarbeitet Anfragen
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // Wenn keine Unterhaltung existiert → neue starten
-    if (!threadId) await initThread();
+    // 🆕 1. Thread für diese Anfrage erzeugen
+    const thread = await openai.beta.threads.create();
+    const threadId = thread.id;
 
-    // Nachricht an Thread anhängen
+    // 📨 2. User-Nachricht anhängen
     await openai.beta.threads.messages.create(threadId, {
       role: "user",
       content: userMessage,
     });
 
-    // Assistant starten
+    // 🤖 3. Assistant starten
     const run = await openai.beta.threads.runs.create(threadId, {
       assistant_id: process.env.ASSISTANT_ID,
     });
 
-    // Warten bis Antwort fertig ist
+    // ⏳ 4. Auf Abschluss warten
     let runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
     while (runStatus.status !== "completed") {
       await new Promise((r) => setTimeout(r, 1000));
       runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
     }
 
-    // Antwort lesen
+    // 💬 5. Antwort extrahieren
     const messages = await openai.beta.threads.messages.list(threadId);
     const reply = messages.data[0].content[0].text.value;
 
