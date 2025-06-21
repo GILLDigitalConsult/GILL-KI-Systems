@@ -54,5 +54,5 @@ app.post("/chat", async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(✅ Server läuft auf http://localhost:${port});
+    console.log(`http://localhost:${port}`);
 });
