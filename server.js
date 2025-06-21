@@ -13,42 +13,53 @@ const openai = new OpenAI({
 
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static("public")); // Website-Frontend
+app.use(express.static("public")); // Für dein Website-Frontend (index.html usw.)
 
-// POST /chat → verarbeitet Anfragen
+// ➕ Neuer Endpoint zum Erzeugen eines Threads (wird nur einmal je Session genutzt)
+app.post("/create-thread", async (req, res) => {
+  try {
+    const thread = await openai.beta.threads.create();
+    res.json({ threadId: thread.id });
+  } catch (error) {
+    console.error("❌ Fehler bei Thread-Erstellung:", error);
+    res.status(500).json({ error: "Thread konnte nicht erstellt werden." });
+  }
+});
+
+// 🔁 Bestehender Chat-Endpoint, nutzt jetzt bestehende threadId vom Client
 app.post("/chat", async (req, res) => {
-  const userMessage = req.body.message;
+  const { message, threadId } = req.body;
+
+  if (!threadId) {
+    return res.status(400).json({ error: "Kein threadId übergeben." });
+  }
 
   try {
-    // 🆕 1. Thread für diese Anfrage erzeugen
-    const thread = await openai.beta.threads.create();
-    const threadId = thread.id;
-
-    // 📨 2. User-Nachricht anhängen
+    // Nachricht an bestehenden Thread anhängen
     await openai.beta.threads.messages.create(threadId, {
       role: "user",
-      content: userMessage,
+      content: message,
     });
 
-    // 🤖 3. Assistant starten
+    // Assistant starten
     const run = await openai.beta.threads.runs.create(threadId, {
       assistant_id: process.env.ASSISTANT_ID,
     });
 
-    // ⏳ 4. Auf Abschluss warten
+    // Auf Abschluss warten
     let runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
     while (runStatus.status !== "completed") {
       await new Promise((r) => setTimeout(r, 1000));
       runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
     }
 
-    // 💬 5. Antwort extrahieren
+    // Antwort extrahieren
     const messages = await openai.beta.threads.messages.list(threadId);
     const reply = messages.data[0].content[0].text.value;
 
     res.json({ reply });
   } catch (error) {
-    console.error("Fehler:", error);
+    console.error("❌ Fehler beim Abrufen der Antwort:", error);
     res.status(500).json({ error: "Fehler beim Abrufen der Antwort." });
   }
 });
