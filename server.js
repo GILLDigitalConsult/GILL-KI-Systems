@@ -13,24 +13,23 @@ const openai = new OpenAI({
 
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static("public")); // Website-Frontend
+app.use(express.static("public")); // Webseite
 
-// POST /chat → verarbeitet Anfragen
+// POST /chat
 app.post("/chat", async (req, res) => {
-  const userMessage = req.body.message;
+  const { message, threadId: clientThreadId } = req.body;
 
   try {
-    // 🆕 1. Thread für diese Anfrage erzeugen
-    const thread = await openai.beta.threads.create();
-    const threadId = thread.id;
+    // 🆕 1. Thread-ID entweder vom Client nutzen oder eine neue erstellen
+    const threadId = clientThreadId || (await openai.beta.threads.create()).id;
 
-    // 📨 2. User-Nachricht anhängen
+    // 📨 2. User-Nachricht zum Thread hinzufügen
     await openai.beta.threads.messages.create(threadId, {
       role: "user",
-      content: userMessage,
+      content: message,
     });
 
-    // 🤖 3. Assistant starten
+    // 🤖 3. Assistant ausführen
     const run = await openai.beta.threads.runs.create(threadId, {
       assistant_id: process.env.ASSISTANT_ID,
     });
@@ -42,11 +41,12 @@ app.post("/chat", async (req, res) => {
       runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
     }
 
-    // 💬 5. Antwort extrahieren
+    // 💬 5. Letzte Nachricht des Assistants extrahieren
     const messages = await openai.beta.threads.messages.list(threadId);
-    const reply = messages.data[0].content[0].text.value;
+    const reply = messages.data[0]?.content?.[0]?.text?.value || "Keine Antwort erhalten.";
 
-    res.json({ reply });
+    // ✅ Antwort samt Thread-ID zurückgeben
+    res.json({ reply, threadId });
   } catch (error) {
     console.error("Fehler:", error);
     res.status(500).json({ error: "Fehler beim Abrufen der Antwort." });
@@ -54,5 +54,5 @@ app.post("/chat", async (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`http://localhost:${port}`);
+  console.log(`http://localhost:${port}`);
 });
